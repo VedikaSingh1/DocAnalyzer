@@ -1,6 +1,6 @@
 // src/App.js
 import React, { useState } from "react";
-import FileUpload from "./components/FileUpload";
+//import FileUpload from "./components/FileUpload";
 import ChatWindow from "./components/ChatWindow";
 import ChatInput from "./components/ChatInput";
 import ScrollToTopButton from "./components/ScrollToTopButton";
@@ -11,47 +11,101 @@ const App = () => {
   const [messages, setMessages] = useState([]);
 
   const handleFileUpload = (uploadedFile) => {
-    setFile(uploadedFile);
-    setMessages([
-      {
-        sender: "bot",
-        text: "File uploaded successfully. You can start chatting!",
-      },
-    ]);
+    const formData = new FormData();
+    formData.append("file", uploadedFile);
+
+    const uploadUrl = `${process.env.REACT_APP_API_URL}upload_pdf/`;
+    console.log("Uploading to URL:", uploadUrl); // Debugging the concatenated URL
+
+    fetch(uploadUrl, {
+      method: "POST",
+      body: formData,
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to upload file.");
+        }
+        return response.json();
+      })
+      .then(() => {
+        setFile(uploadedFile);
+        setMessages([
+          {
+            sender: "bot",
+            text: "File uploaded successfully. You can start chatting!",
+          },
+        ]);
+      })
+      .catch((error) => {
+        console.error("File upload error:", error);
+        setMessages([
+          {
+            sender: "bot",
+            text: "Failed to upload file. Please try again.",
+          },
+        ]);
+      });
   };
 
-  const handleSendMessage = (text) => {
+  const handleSendMessage = async (text) => {
+    // Add the user message to the chat
     const userMessage = { sender: "user", text };
     setMessages((prevMessages) => [...prevMessages, userMessage]);
 
-    const botResponses = [
-      "Interesting question!",
-      "Let me think about that...",
-      "I’m not sure, but I’ll try to help!",
-      "That’s a great point!",
-      "Could you elaborate on that?",
-    ];
-    const botMessage = {
-      sender: "bot",
-      text: botResponses[Math.floor(Math.random() * botResponses.length)],
-    };
-    setTimeout(() => {
+    const formData = new FormData();
+    formData.append("question", text);
+
+    const queryUrl = `${process.env.REACT_APP_API_URL}query/`;
+    console.log("Sending query to URL:", queryUrl); // Debugging the concatenated URL
+
+    try {
+      // Make the API call
+      const response = await fetch(queryUrl, {
+        method: "POST",
+        body: formData,
+      });
+      console.log(response);
+      if (!response.ok) {
+        throw new Error("Failed to fetch bot response.");
+      }
+
+      const data = await response.json();
+      console.log(data);
+
+      // Add the bot's message to the chat
+      const botMessage = {
+        sender: "bot",
+        text:
+          data.result.answer.replace(/^FINAL ANSWER:\s*/, "") || "No response.",
+      };
+
       setMessages((prevMessages) => [...prevMessages, botMessage]);
-    }, 500);
+    } catch (error) {
+      console.error("Error fetching bot response:", error);
+
+      // Add an error message to the chat
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        {
+          sender: "bot",
+          text: "Failed to fetch response. Please try again.",
+        },
+      ]);
+    }
   };
 
   return (
     <div className="app">
       <div className="project-description">
         <h1>About the Project</h1>
-        <p>
+        <div>
           <h3>
             DocAnalyzr is a tool designed to help you analyze and discuss
             documents in a conversational manner. Once you have uploaded your
             file, you may ask questions regarding it and we will do our best to
             answer it.
           </h3>
-        </p>
+        </div>
       </div>
       <section className="wrapper">
         <div className="top">DocAnalyzr</div>
@@ -73,10 +127,8 @@ const App = () => {
         <div className="main-content">
           <ChatWindow messages={messages} />
           <ChatInput onSendMessage={handleSendMessage} />
-          {/* Description Section */}
         </div>
       )}
-      {/* Scroll-to-Top Button */}
       <ScrollToTopButton />
     </div>
   );
